@@ -1,0 +1,182 @@
+############launch############
+
+import os
+
+from ament_index_python.packages import get_package_share_directory
+
+from launch import LaunchDescription
+from launch.substitutions import LaunchConfiguration
+from launch.actions import DeclareLaunchArgument
+from launch_ros.actions import Node
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+
+import xacro
+
+
+def generate_launch_description():
+    use_sim_time = LaunchConfiguration('use_sim_time')
+
+    pkg_path = os.path.join(get_package_share_directory('robot'))
+    xacro_file = os.path.join(pkg_path,'urdf','robot.urdf.xacro')
+    robot_description_config = xacro.process_file(xacro_file)
+    
+    params = {'robot_description': robot_description_config.toxml(), 'use_sim_time': use_sim_time}
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        output='screen',
+        parameters=[params]
+    )
+
+    rviz = Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+        )
+
+    gazebo = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([os.path.join(
+                get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')]),
+         )
+
+    spawn_entity = Node(package='gazebo_ros', 
+                        executable='spawn_entity.py',
+                        arguments=['-topic', 'robot_description',
+                                   '-entity', 'my_bot'],
+                        output='screen')
+
+    return LaunchDescription([
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='false',
+            description='Use sim time if true'),
+
+        robot_state_publisher, 
+        rviz,
+        gazebo,
+        spawn_entity
+    ])
+
+
+############new file############
+
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
+
+</robot>
+
+############gazebo controller############
+
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <gazebo>
+        <plugin name="diff_drive" filename="libgazebo_ros_diff_drive.so">
+
+            <!-- Wheel Information -->
+            <left_joint>base_link_left_wheel_joint</left_joint>
+            <right_joint>base_link_right_wheel_joint</right_joint>
+            <wheel_separation>0.2</wheel_separation>
+            <wheel_diameter>0.1</wheel_diameter>
+
+            <!-- Limits -->
+            <max_wheel_torque>200</max_wheel_torque>
+            <max_wheel_acceleration>10.0</max_wheel_acceleration>
+
+            <!-- Output -->
+            <odometry_frame>odom</odometry_frame>
+            <robot_base_frame>base_link</robot_base_frame>
+
+            <publish_odom>true</publish_odom>
+            <publish_odom_tf>true</publish_odom_tf>
+            <publish_wheel_tf>true</publish_wheel_tf>
+
+        </plugin>
+    </gazebo>
+
+</robot>
+
+############camera############
+
+<gazebo reference="camera">
+        <material>Gazebo/Black</material>
+
+        <sensor name="camera" type="camera">
+            <pose> 0 0 0 0 0 0 </pose>
+            <visualize>true</visualize>
+            <update_rate>10</update_rate>
+            <camera>
+                <horizontal_fov>1.089</horizontal_fov>
+                <image>
+                    <format>R8G8B8</format>
+                    <width>640</width>
+                    <height>480</height>
+                </image>
+                <clip>
+                    <near>0.05</near>
+                    <far>8.0</far>
+                </clip>
+            </camera>
+            <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+                <frame_name>camera</frame_name>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+############lidar############
+
+<gazebo reference="lidar">
+        <material>Gazebo/Black</material>
+
+        <sensor name="laser" type="ray">
+            <pose> 0 0 0 0 0 0 </pose>
+            <visualize>true</visualize>
+            <update_rate>10</update_rate>
+            <ray>
+                <scan>
+                    <horizontal>
+                        <samples>360</samples>
+                        <min_angle>-3.14</min_angle>
+                        <max_angle>3.14</max_angle>
+                    </horizontal>
+                </scan>
+                <range>
+                    <min>0.3</min>
+                    <max>12</max>
+                </range>
+            </ray>
+            <plugin name="laser_controller" filename="libgazebo_ros_ray_sensor.so">
+                <ros>
+                    <argument>~/out:=scan</argument>
+                </ros>
+                <output_type>sensor_msgs/LaserScan</output_type>
+                <frame_name>lidar</frame_name>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+############robot.urdf.xacro############
+
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro"  name="robot">
+
+    <xacro:arg name="sim_mode" default="false"/>
+
+    <xacro:include filename="robot_core.xacro" />
+
+    <xacro:include filename="gazebo_controller.xacro" />
+
+    <xacro:include filename="lidar.xacro" />
+    <xacro:include filename="camera.xacro" />
+    
+</robot>
+
+############gazebo material############
+
+<gazebo reference="base_link">
+        <material>Gazebo/White</material>
+        <mu1 value="0.001"/>
+        <mu2 value="0.001"/>
+    </gazebo>
+
