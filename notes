@@ -1,11 +1,10 @@
+file://$(find pkg_name)/meshes/
+
+#############cmake#############
 install(
   DIRECTORY urdf meshes launch
   DESTINATION share/${PROJECT_NAME}
 )
-
-##############################
-
-file://$(find pkg_name)/meshes/
 
 ############launch############
 
